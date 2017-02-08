@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+
+echo "Compiling..."
+javac -d ../bin *.java
+echo "Finished"
+echo ""
+# cd ../bin
+# java WebProxy 8080

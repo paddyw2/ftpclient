@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+
+echo "Running..."
+echo ""
+cd ../bin
+java FTPClient localhost 5555 test.txt
