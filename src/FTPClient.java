@@ -20,7 +20,9 @@ public class FTPClient {
     private String serverName;
     private int serverPort;
     private String fileName;
-    private int timeout;
+    private int responseTimeout;
+    private DataOutputStream output;
+    private DataInputStream input;
 
     /**
      * Constructor to initialize the program 
@@ -31,13 +33,77 @@ public class FTPClient {
      * @param timeout       Time out value (in milli-seconds).
      */
     public FTPClient(String server_name, int server_port, String file_name, int timeout) {
-    
         /* Initialize values */
         serverName = server_name;
         serverPort = server_port;
         fileName = file_name;
-        this.timeout = timeout;
+        responseTimeout = timeout;
+    }
+    
+    /**
+     * Send file content as Segments
+     * 
+     */
+    public void send() {
+        // send handshake
+        boolean handshakeSuccess = TCPHandshake();
+        if(!handshakeSuccess) {
+            System.out.println("Handshake failure - terminating");
+            return;
+        }
+        
+        // read file contents into byte array
+        byte[] fileBytes = readFile(fileName);
 
+        // set payload size to either max, or
+        // lower (if file is small)
+        int maxPayloadSize = Segment.MAX_PAYLOAD_SIZE;
+        if(fileBytes.length < maxPayloadSize)
+            maxPayloadSize = fileBytes.length;
+
+        boolean fileNotFinished = true;
+        int currentIndex = 0;
+        byte[] payload;
+        int seqNo = 1;
+        while(fileNotFinished) {
+            // create payload and fill with file contents
+            try {
+                payload = new byte[Segment.MAX_PAYLOAD_SIZE];
+                for(int i=0; i<payload.length;i++) {
+                    payload[i] = fileBytes[currentIndex+i];
+                }
+                currentIndex = currentIndex + payload.length;
+            } catch (Exception e) {
+                System.out.println("End of file reached, last segment");
+                payload = new byte[fileBytes.length - currentIndex];
+                for(int i=0; i<payload.length;i++) {
+                    payload[i] = fileBytes[currentIndex+i];
+                }
+                // end loop after this packet sent
+                fileNotFinished = false;
+            }
+           
+            // set alternating
+            // sequence no
+            if(seqNo == 1)
+                seqNo = 0;
+            else
+                seqNo = 1;
+
+            // send packet and get response
+            // (takes into account timeout)
+            sendData(payload, seqNo);
+        }
+
+        // send end of transmission message
+        boolean EOTSuccess = TCPEndTransmission();
+        if(!EOTSuccess) {
+            System.out.println("EOT message failure");
+        }
+    }
+
+    public boolean TCPHandshake()
+    {
         /* send TCP handshake */
 
         // set up socket
@@ -50,16 +116,16 @@ public class FTPClient {
 
         // set up output stream, and send initial handshake
         try {
-            DataOutputStream output = new DataOutputStream(socket.getOutputStream());
+            output = new DataOutputStream(socket.getOutputStream());
             output.writeUTF(fileName);
         } catch (Exception e) {
-            System.out.println("Output error");
+            System.out.println("Handshake output error");
         }
 
         // set up input strea, and wait for handshake response
         byte response = -1;
         try {
-            DataInputStream input = new DataInputStream(socket.getInputStream());
+            input = new DataInputStream(socket.getInputStream());
             boolean readData = true;
             while(readData) {
                 if(input.available() > 0) {
@@ -68,49 +134,87 @@ public class FTPClient {
                 }
             }
         } catch (Exception e) {
-            System.out.println("Input error");
+            System.out.println("Input stream handshake error");
             System.out.println(e.getMessage());
         }
 
-        if(response != 0)
-            System.out.println("Handshake failure");
-        else
-            System.out.println("Handshake success");
-    }
-    
-
-    /**
-     * Send file content as Segments
-     * 
-     */
-    public void send() {
-        
-        /* send logic goes here. You may introduce addtional methods and classes */
-        // segment info
-        byte[] payload = new byte[Segment.MAX_PAYLOAD_SIZE];
-       
-        String tester = "just a wee message mate";
-        payload = tester.getBytes();
- 
-        DatagramPacket response = sendData(payload, 0);
+        // return boolean indicating
+        // success
+        if(response != 0) {
+            return false;
+        } else {
+            return true;
+        }
     }
 
-    public DatagramPacket sendData(byte[] payload, int seqNo)
+    public boolean TCPEndTransmission()
     {
+        // sends termination message to
+        // same TCP socket
+        try {
+            output.writeByte(0);
+        } catch (Exception e) {
+            System.out.println("EOT byte output error");
+            return false;
+        }
+        return true;
+    }
+
+    public byte[] readFile(String filePath)
+    {
+        // reads file by name from execution directory
+        // and returns a byte array with its contents
+
+        // create full path
+        filePath = System.getProperty("user.dir") + "/" + filePath;
+        
+        // initialize values
+        byte[] data = null;
+        File file = null;
+
+        // check path is correct
+        try {
+            file = new File(filePath);
+        } catch (Exception e) {
+            System.out.println("Invalid file path");
+        }
+
+        // try reading file into byte array
+        String eachLine = null;
+        try {
+            data = new byte[(int) file.length()];
+            FileInputStream fileStream = new FileInputStream(file);
+            DataInputStream dataStream = new DataInputStream(fileStream);
+            dataStream.read(data);
+            dataStream.close();
+        } catch (Exception e) {
+            // handle any exceptions
+            System.out.println("File exception triggered");
+            System.out.println("Message: " + e.getMessage());
+        }
+        // return file contents as byte array
+        return data;
+    }
+
+    public void sendData(byte[] payload, int seqNo)
+    {
+        /* main UDP send logic */
+        // takes payload byte array and sequence number
+        // creates and sends this as a packet to server
+        // and waits for ACK until timeout
+        // upon timeout, repeat process until ACK
+        // received
+
         // create receiving packet
         byte[] receiveData = new byte[Segment.MAX_PAYLOAD_SIZE];
         DatagramPacket pkt = new DatagramPacket(receiveData, receiveData.length);
 
-        /* send file over UDP */
-        // send packet and wait for response until
-        // timout reached
-        // when reached, loop and send packet again
-        // when reponse received, break loop and
-        // return response packet
+        // send specified data until ACK received
         boolean timeoutReached = true;
         while(timeoutReached) {
 
-            // creating a segment with the payload and seqNum 1
+            // creating a segment with specified payload
+            // and sequence number
             Segment seg1 = new Segment(seqNo, payload);
 
             // create sender socket
@@ -120,29 +224,32 @@ public class FTPClient {
                 System.out.println("UDP socket init failure");
                 System.out.println(e.getMessage());
             }
-
+            
+            // set socket timeout
             try {
-                UDPSocket.setSoTimeout(2000);
+                UDPSocket.setSoTimeout(responseTimeout);
             } catch (Exception e) {
                 System.out.println("Setting timeout failed");
             }
-
+            
+            // convert segment to bytes in
+            // order to send data
             byte[] sendData = seg1.getBytes();
 
-            InetAddress IPAddress = null;
-
             // create IP address
+            InetAddress IPAddress = null;
             try {
-                IPAddress = InetAddress.getByName("localhost");
+                IPAddress = InetAddress.getByName(serverName);
             } catch (Exception e) {
                 System.out.println("Inet error");
                 System.out.println(e.getMessage());
             }
 
-            // create sender packet
+            // create sender packet from specified segment
+            // data, server and server port info
             DatagramPacket sendPacket =  new DatagramPacket(sendData, sendData.length, IPAddress, serverPort);
 
-            // try send packet
+            // try send packet to server
             try {
                 UDPSocket.send(sendPacket);
             } catch (Exception e) {
@@ -150,17 +257,21 @@ public class FTPClient {
                 System.out.println(e.getMessage());
             }
 
-            // wait for client response
+            // wait for server response
             try {
                 UDPSocket.receive(pkt);
-                // if packet received, break loop
-                timeoutReached = false;
+                // if packet received, and
+                // correct ACK, break loop
+                byte[] returnedBytes = pkt.getData();
+                if(returnedBytes[0] == seqNo)
+                    timeoutReached = false;
+                else
+                    System.out.println("Duplicate ACK");
             } catch (Exception e) {
                 System.out.println("Timeout: Packet receive error");
                 System.out.println(e.getMessage());
             }
         }
-        return pkt;
     }
 
        /**
