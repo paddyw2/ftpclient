@@ -3,4 +3,4 @@
 echo "Running..."
 echo ""
 cd ../bin
-java FTPClient localhost 5555 readlist.pdf
+java FTPClient localhost 5555 test.jpg

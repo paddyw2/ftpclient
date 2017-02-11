@@ -9,8 +9,6 @@
 
 import java.net.*;
 import java.io.*;
-import java.util.Arrays;
-
 import java.util.*;
 
 public class FTPClient {
@@ -61,18 +59,34 @@ public class FTPClient {
         if(fileBytes.length < maxPayloadSize)
             maxPayloadSize = fileBytes.length;
 
+        // loop over a file contents, breakd
+        // into segments, and send over UDP
         boolean fileNotFinished = true;
         int currentIndex = 0;
         byte[] payload;
         int seqNo = 1;
         while(fileNotFinished) {
-            // create payload and fill with file contents
+            // fills a segment with next section
+            // of file contents byte array
+            // current section to be sent is
+            // defined by currentIndex
+            // on the last segment, the next
+            // section will most likely be
+            // smaller than maxPayloadSize so
+            // catch exception and finish
+            // loop
             try {
-                payload = new byte[Segment.MAX_PAYLOAD_SIZE];
+                payload = new byte[maxPayloadSize];
                 for(int i=0; i<payload.length;i++) {
                     payload[i] = fileBytes[currentIndex+i];
                 }
                 currentIndex = currentIndex + payload.length;
+                // checks if another section exists
+                // in case maxPayloadSize divides file
+                // size exactly
+                // if no nore bytes, it will trigger an
+                // exception
+                byte checkEOF = fileBytes[currentIndex+1];
             } catch (Exception e) {
                 System.out.println("End of file reached, last segment");
                 payload = new byte[fileBytes.length - currentIndex];
@@ -135,7 +149,6 @@ public class FTPClient {
             }
         } catch (Exception e) {
             System.out.println("Input stream handshake error");
-            System.out.println(e.getMessage());
         }
 
         // return boolean indicating
