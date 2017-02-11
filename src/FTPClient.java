@@ -9,6 +9,9 @@
 
 import java.net.*;
 import java.io.*;
+import java.util.Arrays;
+
+import java.util.*;
 
 public class FTPClient {
 
@@ -74,44 +77,7 @@ public class FTPClient {
         else
             System.out.println("Handshake success");
 
-
-        /* send file over UDP */
-        try {
-            UDPSocket = new DatagramSocket();
-        } catch (Exception e) {
-            System.out.println("UDP socket init failure");
-            System.out.println(e.getMessage());
-        }
-
-        byte[] sendData = new byte[1024];
-
-        InetAddress IPAddress = null;
-
-        try {
-            IPAddress = InetAddress.getByName("localhost");
-        } catch (Exception e) {
-            System.out.println("Inet error");
-            System.out.println(e.getMessage());
-        }
-
-        DatagramPacket sendPacket =  new DatagramPacket(sendData, sendData.length, IPAddress, serverPort);
-
-        try {
-            UDPSocket.send(sendPacket);
-        } catch (Exception e) {
-            System.out.println("Packet send error");
-            System.out.println(e.getMessage());
-        }
-
-        byte[] receiveData = new byte[1024];
-        DatagramPacket pkt = new DatagramPacket(sendData, receiveData.length);
-        
-        try {
-            UDPSocket.receive(pkt);
-        } catch (Exception e) {
-            System.out.println("Packet receive error");
-            System.out.println(e.getMessage());
-        }
+        sendData();
 
     }
     
@@ -125,7 +91,77 @@ public class FTPClient {
         /* send logic goes here. You may introduce addtional methods and classes */
     }
 
-    
+    public void sendData()
+    {
+        while(true) {
+        /* send file over UDP */
+        // segment info
+        byte[] payload = new byte[Segment.MAX_PAYLOAD_SIZE];
+       
+        String tester = "just a wee message mate";
+        payload = tester.getBytes();
+
+        // creating a segment with the payload and seqNum 1
+        Segment seg1 = new Segment(0, payload);
+
+
+        // create sender socket
+        try {
+            UDPSocket = new DatagramSocket();
+        } catch (Exception e) {
+            System.out.println("UDP socket init failure");
+            System.out.println(e.getMessage());
+        }
+
+        try {
+            UDPSocket.setSoTimeout(2000);
+        } catch (Exception e) {
+            System.out.println("boo");
+        }
+
+        byte[] sendData = seg1.getBytes();
+
+        InetAddress IPAddress = null;
+
+        // create IP address
+        try {
+            IPAddress = InetAddress.getByName("localhost");
+        } catch (Exception e) {
+            System.out.println("Inet error");
+            System.out.println(e.getMessage());
+        }
+
+        // create sender packet
+        DatagramPacket sendPacket =  new DatagramPacket(sendData, sendData.length, IPAddress, serverPort);
+
+        // try send packet
+        try {
+            UDPSocket.send(sendPacket);
+        } catch (Exception e) {
+            System.out.println("Packet send error");
+            System.out.println(e.getMessage());
+        }
+
+        // create receiving packet
+        byte[] receiveData = new byte[Segment.MAX_PAYLOAD_SIZE];
+        DatagramPacket pkt = new DatagramPacket(receiveData, receiveData.length);
+        
+        // wait for client response
+
+        boolean noTimeout = true;
+        try {
+            UDPSocket.receive(pkt);
+        } catch (Exception e) {
+            noTimeout = false;
+            System.out.println("Timeout: Packet receive error");
+            System.out.println(e.getMessage());
+        }
+        // if packet received, break loop
+        if(noTimeout)
+            break;
+
+        }
+    }
 
        /**
         * A simple test driver
