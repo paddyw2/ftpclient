@@ -76,9 +76,6 @@ public class FTPClient {
             System.out.println("Handshake failure");
         else
             System.out.println("Handshake success");
-
-        sendData();
-
     }
     
 
@@ -89,78 +86,81 @@ public class FTPClient {
     public void send() {
         
         /* send logic goes here. You may introduce addtional methods and classes */
-    }
-
-    public void sendData()
-    {
-        while(true) {
-        /* send file over UDP */
         // segment info
         byte[] payload = new byte[Segment.MAX_PAYLOAD_SIZE];
        
         String tester = "just a wee message mate";
         payload = tester.getBytes();
+ 
+        DatagramPacket response = sendData(payload, 0);
+    }
 
-        // creating a segment with the payload and seqNum 1
-        Segment seg1 = new Segment(0, payload);
-
-
-        // create sender socket
-        try {
-            UDPSocket = new DatagramSocket();
-        } catch (Exception e) {
-            System.out.println("UDP socket init failure");
-            System.out.println(e.getMessage());
-        }
-
-        try {
-            UDPSocket.setSoTimeout(2000);
-        } catch (Exception e) {
-            System.out.println("boo");
-        }
-
-        byte[] sendData = seg1.getBytes();
-
-        InetAddress IPAddress = null;
-
-        // create IP address
-        try {
-            IPAddress = InetAddress.getByName("localhost");
-        } catch (Exception e) {
-            System.out.println("Inet error");
-            System.out.println(e.getMessage());
-        }
-
-        // create sender packet
-        DatagramPacket sendPacket =  new DatagramPacket(sendData, sendData.length, IPAddress, serverPort);
-
-        // try send packet
-        try {
-            UDPSocket.send(sendPacket);
-        } catch (Exception e) {
-            System.out.println("Packet send error");
-            System.out.println(e.getMessage());
-        }
-
+    public DatagramPacket sendData(byte[] payload, int seqNo)
+    {
         // create receiving packet
         byte[] receiveData = new byte[Segment.MAX_PAYLOAD_SIZE];
         DatagramPacket pkt = new DatagramPacket(receiveData, receiveData.length);
-        
-        // wait for client response
 
-        boolean noTimeout = true;
-        try {
-            UDPSocket.receive(pkt);
-        } catch (Exception e) {
-            noTimeout = false;
-            System.out.println("Timeout: Packet receive error");
-            System.out.println(e.getMessage());
-        }
-        // if packet received, break loop
-        if(noTimeout)
-            break;
+        /* send file over UDP */
+        // send packet and wait for response until
+        // timout reached
+        // when reached, loop and send packet again
+        // when reponse received, break loop and
+        // return response packet
+        boolean timeoutReached = true;
+        while(timeoutReached) {
 
+            // creating a segment with the payload and seqNum 1
+            Segment seg1 = new Segment(seqNo, payload);
+
+            // create sender socket
+            try {
+                UDPSocket = new DatagramSocket();
+            } catch (Exception e) {
+                System.out.println("UDP socket init failure");
+                System.out.println(e.getMessage());
+            }
+
+            try {
+                UDPSocket.setSoTimeout(2000);
+            } catch (Exception e) {
+                System.out.println("Setting timeout failed");
+            }
+
+            byte[] sendData = seg1.getBytes();
+
+            InetAddress IPAddress = null;
+
+            // create IP address
+            try {
+                IPAddress = InetAddress.getByName("localhost");
+            } catch (Exception e) {
+                System.out.println("Inet error");
+                System.out.println(e.getMessage());
+            }
+
+            // create sender packet
+            DatagramPacket sendPacket =  new DatagramPacket(sendData, sendData.length, IPAddress, serverPort);
+
+            // try send packet
+            try {
+                UDPSocket.send(sendPacket);
+            } catch (Exception e) {
+                System.out.println("Packet send error");
+                System.out.println(e.getMessage());
+            }
+
+            // wait for client response
+            try {
+                UDPSocket.receive(pkt);
+                // if packet received, break loop
+                timeoutReached = false;
+            } catch (Exception e) {
+                System.out.println("Timeout: Packet receive error");
+                System.out.println(e.getMessage());
+            }
         }
+        return pkt;
     }
 
        /**
