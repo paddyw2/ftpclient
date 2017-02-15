@@ -15,6 +15,7 @@ public class FTPClient {
 
     private Socket socket;
     private DatagramSocket UDPSocket;
+    private InetAddress IPAddress;
     private String serverName;
     private int serverPort;
     private String fileName;
@@ -36,6 +37,30 @@ public class FTPClient {
         serverPort = server_port;
         fileName = file_name;
         responseTimeout = timeout;
+
+        // create sender socket
+        try {
+            UDPSocket = new DatagramSocket();
+        } catch (Exception e) {
+            System.out.println("UDP socket init failure");
+            System.out.println(e.getMessage());
+        }
+        
+        // set socket timeout
+        try {
+            UDPSocket.setSoTimeout(responseTimeout);
+        } catch (Exception e) {
+            System.out.println("Setting timeout failed");
+        }
+
+        // create IP address
+        IPAddress = null;
+        try {
+            IPAddress = InetAddress.getByName(serverName);
+        } catch (Exception e) {
+            System.out.println("Inet error");
+            System.out.println(e.getMessage());
+        }
     }
     
     /**
@@ -106,13 +131,23 @@ public class FTPClient {
 
             // send packet and get response
             // (takes into account timeout)
-            sendData(payload, seqNo);
+            sendPacketData(payload, seqNo);
         }
 
         // send end of transmission message
         boolean EOTSuccess = TCPEndTransmission();
         if(!EOTSuccess) {
             System.out.println("EOT message failure");
+        }
+
+        // close sockets and io streams
+        try {
+            input.close();
+            output.close();
+            UDPSocket.close();
+            socket.close();
+        } catch (Exception e) {
+            System.out.println("Socket close error");
         }
     }
 
@@ -199,6 +234,7 @@ public class FTPClient {
             FileInputStream fileStream = new FileInputStream(file);
             DataInputStream dataStream = new DataInputStream(fileStream);
             dataStream.read(data);
+            fileStream.close();
             dataStream.close();
         } catch (Exception e) {
             // handle any exceptions
@@ -209,7 +245,7 @@ public class FTPClient {
         return data;
     }
 
-    public void sendData(byte[] payload, int seqNo)
+    public void sendPacketData(byte[] payload, int seqNo)
     {
         /* main UDP send logic */
         // takes payload byte array and sequence number
@@ -219,7 +255,7 @@ public class FTPClient {
         // received
 
         // create receiving packet
-        byte[] receiveData = new byte[Segment.MAX_PAYLOAD_SIZE];
+        byte[] receiveData = new byte[payload.length];
         DatagramPacket pkt = new DatagramPacket(receiveData, receiveData.length);
 
         // send specified data until ACK received
@@ -229,34 +265,10 @@ public class FTPClient {
             // creating a segment with specified payload
             // and sequence number
             Segment seg1 = new Segment(seqNo, payload);
-
-            // create sender socket
-            try {
-                UDPSocket = new DatagramSocket();
-            } catch (Exception e) {
-                System.out.println("UDP socket init failure");
-                System.out.println(e.getMessage());
-            }
-            
-            // set socket timeout
-            try {
-                UDPSocket.setSoTimeout(responseTimeout);
-            } catch (Exception e) {
-                System.out.println("Setting timeout failed");
-            }
             
             // convert segment to bytes in
             // order to send data
             byte[] sendData = seg1.getBytes();
-
-            // create IP address
-            InetAddress IPAddress = null;
-            try {
-                IPAddress = InetAddress.getByName(serverName);
-            } catch (Exception e) {
-                System.out.println("Inet error");
-                System.out.println(e.getMessage());
-            }
 
             // create sender packet from specified segment
             // data, server and server port info
@@ -279,10 +291,10 @@ public class FTPClient {
                 if(returnedBytes[0] == seqNo)
                     timeoutReached = false;
                 else
-                    System.out.println("Duplicate ACK");
+                    System.out.println("Duplicate ACK - resending packet");
             } catch (Exception e) {
-                System.out.println("Timeout: Packet receive error");
-                System.out.println(e.getMessage());
+                System.out.println("Timeout: response not received");
+                System.out.println("* " + e.getMessage() + " *");
             }
         }
     }
