@@ -10,6 +10,5 @@ Files created:
 * FTPClient.java
 
 ### To run:
-1. Run server: <code>java -jar FTPServer.jar [port-number] [packet-loss-probability (i.e. 0.2)]>
-
-2. Run client (from <code>/bin</code>): <code>java FTPClient localhost [port-number] [file-in-bin]>
+1. Run server: <code>java -jar FTPServer.jar [port-number] [packet-loss-probability (i.e. 0.2)]</code>
+2. Run client (from <code>/bin</code>): <code>java FTPClient localhost [port-number] [file-in-bin]</code>
