@@ -101,13 +101,15 @@ public class FTPClient {
             // loop
             try {
                 payload = new byte[maxPayloadSize];
+                // triggers exception when end of file
+                // reached
                 for(int i=0; i<payload.length;i++) {
                     payload[i] = fileBytes[currentIndex+i];
                 }
                 currentIndex = currentIndex + payload.length;
                 // checks if another section exists
                 // in case maxPayloadSize divides file
-                // size exactly
+                // size exactly (i.e. no exception occurs)
                 // if no nore bytes, it will trigger an
                 // exception
                 byte checkEOF = fileBytes[currentIndex+1];
