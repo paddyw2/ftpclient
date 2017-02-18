@@ -296,8 +296,6 @@ public class FTPClient {
                     System.out.println("Duplicate ACK - resending packet");
             } catch (Exception e) {
                 System.out.println("Timeout: response not received");
-                System.out.println("Sequence number: " + seqNo);
-                System.out.println(Arrays.toString(returnedBytes));
                 System.out.println("* " + e.getMessage() + " *");
             }
         }
