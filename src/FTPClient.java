@@ -81,8 +81,6 @@ public class FTPClient {
         // set payload size to either max, or
         // lower (if file is small)
         int maxPayloadSize = Segment.MAX_PAYLOAD_SIZE;
-        if(fileBytes.length < maxPayloadSize)
-            maxPayloadSize = fileBytes.length;
 
         // loop over a file contents, breakd
         // into segments, and send over UDP
@@ -90,6 +88,7 @@ public class FTPClient {
         int currentIndex = 0;
         byte[] payload;
         int seqNo = 1;
+
         while(fileNotFinished) {
             // fills a segment with next section
             // of file contents byte array
@@ -282,18 +281,21 @@ public class FTPClient {
                 System.out.println(e.getMessage());
             }
 
+            byte[] returnedBytes = {1,1,1};
             // wait for server response
             try {
                 UDPSocket.receive(pkt);
                 // if packet received, and
                 // correct ACK, break loop
-                byte[] returnedBytes = pkt.getData();
+                returnedBytes = pkt.getData();
                 if(returnedBytes[0] == seqNo)
                     timeoutReached = false;
                 else
                     System.out.println("Duplicate ACK - resending packet");
             } catch (Exception e) {
                 System.out.println("Timeout: response not received");
+                System.out.println("Sequence number: " + seqNo);
+                System.out.println(Arrays.toString(returnedBytes));
                 System.out.println("* " + e.getMessage() + " *");
             }
         }
