@@ -72,15 +72,11 @@ public class FTPClient {
         boolean handshakeSuccess = TCPHandshake();
         if(!handshakeSuccess) {
             System.out.println("Handshake failure - terminating");
-            return;
+            System.exit(1);
         }
         
         // read file contents into byte array
         byte[] fileBytes = readFile(fileName);
-
-        // set payload size to either max, or
-        // lower (if file is small)
-        int maxPayloadSize = Segment.MAX_PAYLOAD_SIZE;
 
         // loop over a file contents, breakd
         // into segments, and send over UDP
@@ -96,11 +92,11 @@ public class FTPClient {
             // defined by currentIndex
             // on the last segment, the next
             // section will most likely be
-            // smaller than maxPayloadSize so
+            // smaller than Segment.MAX_PAYLOAD_SIZE so
             // catch exception and finish
             // loop
             try {
-                payload = new byte[maxPayloadSize];
+                payload = new byte[Segment.MAX_PAYLOAD_SIZE];
                 // triggers exception when end of file
                 // reached
                 for(int i=0; i<payload.length;i++) {
@@ -108,13 +104,13 @@ public class FTPClient {
                 }
                 currentIndex = currentIndex + payload.length;
                 // checks if another section exists
-                // in case maxPayloadSize divides file
+                // in case Segment.MAX_PAYLOAD_SIZE divides file
                 // size exactly (i.e. no exception occurs)
                 // if no nore bytes, it will trigger an
                 // exception
                 byte checkEOF = fileBytes[currentIndex+1];
             } catch (Exception e) {
-                System.out.println("End of file reached, last segment");
+                System.out.println("End of file reached, sending last segment...");
                 payload = new byte[fileBytes.length - currentIndex];
                 for(int i=0; i<payload.length;i++) {
                     payload[i] = fileBytes[currentIndex+i];
